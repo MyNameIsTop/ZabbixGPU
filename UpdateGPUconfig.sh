@@ -30,21 +30,18 @@ EOF
 echo "📁 Backup config to: $BACKUP_CONF"
 cp "$ZABBIX_CONF" "$BACKUP_CONF"
 
-# === Step 2: Comment out existing GPU UserParameters ===
-echo "🔍 Checking for existing GPU UserParameters..."
+# === Step 2: Remove existing GPU UserParameters ===
+echo "🔍 Removing existing GPU UserParameters..."
 while IFS= read -r line; do
-    # ดึง key เช่น gpu.memtotal จาก UserParameter=...
+    # Extract key name from UserParameter
     param_key=$(echo "$line" | cut -d= -f2 | cut -d, -f1)
 
-    # หา line เต็มที่ match กับ key
-    match_line=$(grep -F "UserParameter=${param_key}," "$ZABBIX_CONF" || true)
+    # Escape [ and ] for safe grep/sed
+    escaped_key=$(echo "$param_key" | sed 's/\[/\\[/g; s/\]/\\]/g')
 
-    if [[ -n "$match_line" ]]; then
-        echo "➡️  Commenting: $param_key"
-        # Escape สำหรับ sed (literal string)
-        escaped_line=$(printf '%s\n' "$match_line" | sed 's/[^^]/[&]/g; s/\^/\\^/g')
-        sed -i "s|$match_line|# $match_line|" "$ZABBIX_CONF"
-    fi
+    # Remove any lines that match the full key (at line beginning)
+    sed -i "/^UserParameter=${escaped_key},/d" "$ZABBIX_CONF" && \
+      echo "🗑️  Removed existing: UserParameter=${param_key},..."
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
 # === Step 3: Append new GPU UserParameters ===
