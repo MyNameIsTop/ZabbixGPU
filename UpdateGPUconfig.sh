@@ -20,10 +20,10 @@ UserParameter=gpu.memutilization[*],nvidia-smi --query-gpu=utilization.memory --
 UserParameter=gpu.memfree[*],nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i $1 | tr -d "\n"
 UserParameter=gpu.memused[*],nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $1 | tr -d "\n"
 UserParameter=gpu.memtotal[*],nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits -i $1 | tr -d "\n"
-UserParameter=gpu.utilization.dec.min[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5  DEC | grep Min | tr -s ' ' | cut -d ' ' -f 4
-UserParameter=gpu.utilization.dec.max[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5  DEC | grep Max | tr -s ' ' | cut -d ' ' -f 4
-UserParameter=gpu.utilization.enc.min[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5  ENC | grep Min | tr -s ' ' | cut -d ' ' -f 4
-UserParameter=gpu.utilization.enc.max[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5  ENC | grep Max | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.dec.min[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 DEC | grep Min | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.dec.max[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 DEC | grep Max | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.enc.min[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 ENC | grep Min | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.enc.max[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 ENC | grep Max | tr -s ' ' | cut -d ' ' -f 4
 EOF
 
 # === Step 1: Backup current config ===
@@ -41,10 +41,17 @@ while IFS= read -r line; do
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
 # === Step 3: Append new GPU UserParameters ===
-cat <<EOF "\n# === BEGIN GPU CONFIG ===\n$GPU_PARAMS\n# === END GPU CONFIG ===" >> "$ZABBIX_CONF"
+{
+  echo ""
+  echo "# === BEGIN GPU CONFIG ==="
+  echo "$GPU_PARAMS"
+  echo "# === END GPU CONFIG ==="
+  echo ""
+} >> "$ZABBIX_CONF"
+
 echo "✅ GPU UserParameters added to: $ZABBIX_CONF"
 
-# === Step 4: Download script ===
+# === Step 4: Download GPU discovery script ===
 echo "📥 Installing GPU discovery script..."
 mkdir -p "$GPU_SCRIPT_DIR"
 curl -s -o "$GPU_SCRIPT_PATH" "$GPU_SCRIPT_URL"
