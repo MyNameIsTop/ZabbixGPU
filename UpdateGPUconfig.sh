@@ -41,7 +41,7 @@ while IFS= read -r line; do
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
 # === Step 3: Append new GPU UserParameters ===
-echo -e "\n# === BEGIN GPU CONFIG ===\n$GPU_PARAMS\n# === END GPU CONFIG ===" >> "$ZABBIX_CONF"
+cat <<EOF "\n# === BEGIN GPU CONFIG ===\n$GPU_PARAMS\n# === END GPU CONFIG ===" >> "$ZABBIX_CONF"
 echo "✅ GPU UserParameters added to: $ZABBIX_CONF"
 
 # === Step 4: Download script ===
