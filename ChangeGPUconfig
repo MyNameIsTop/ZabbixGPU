@@ -1,0 +1,74 @@
+#!/bin/bash
+
+ZABBIX_CONF="/etc/zabbix/zabbix_agentd.conf"
+BACKUP_CONF="${ZABBIX_CONF}.bak.$(date +%Y%m%d_%H%M%S)"
+GPU_SCRIPT_DIR="/etc/zabbix/scripts"
+GPU_SCRIPT_URL="https://raw.githubusercontent.com/plambe/zabbix-nvidia-smi-multi-gpu/refs/heads/master/get_gpus_info.sh"
+GPU_SCRIPT_PATH="$GPU_SCRIPT_DIR/get_gpus_info.sh"
+
+# === GPU UserParameters ===
+read -r -d '' GPU_PARAMS <<'EOF'
+# === BEGIN GPU CONFIG ===
+# GPU Monitoring - Linux
+UserParameter=gpu.number,nvidia-smi -L | /usr/bin/wc -l
+UserParameter=gpu.discovery,/etc/zabbix/scripts/get_gpus_info.sh
+UserParameter=gpu.fanspeed[*],nvidia-smi --query-gpu=fan.speed --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.power[*],nvidia-smi --query-gpu=power.draw --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.temp[*],nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.utilization[*],nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.memutilization[*],nvidia-smi --query-gpu=utilization.memory --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.memfree[*],nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.memused[*],nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.memtotal[*],nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits -i $1 | tr -d "\n"
+UserParameter=gpu.utilization.dec.min[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 DEC | grep Min | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.dec.max[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 DEC | grep Max | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.enc.min[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 ENC | grep Min | tr -s ' ' | cut -d ' ' -f 4
+UserParameter=gpu.utilization.enc.max[*],nvidia-smi -q -d UTILIZATION -i $1 | grep -A 5 ENC | grep Max | tr -s ' ' | cut -d ' ' -f 4
+# === END GPU CONFIG ===
+EOF
+
+# === Step 1: Backup Original Config ===
+echo "📁 Backup config to: $BACKUP_CONF"
+cp "$ZABBIX_CONF" "$BACKUP_CONF"
+
+# === Step 2: Remove All Existing UserParameter= Lines ===
+echo "🧹 Removing all existing UserParameter= lines..."
+sed -i '/^UserParameter=/d' "$ZABBIX_CONF"
+
+# === Step 3: Insert GPU UserParameters after '# UserParameter=' if exists ===
+echo "📌 Inserting new GPU parameters..."
+insert_line=$(grep -n "^# UserParameter=" "$ZABBIX_CONF" | cut -d: -f1 | head -n1)
+
+if [[ -n "$insert_line" ]]; then
+    insert_at=$((insert_line + 1))
+    tmp_file=$(mktemp)
+    head -n "$insert_line" "$ZABBIX_CONF" > "$tmp_file"
+    echo "$GPU_PARAMS" >> "$tmp_file"
+    tail -n +"$insert_at" "$ZABBIX_CONF" >> "$tmp_file"
+    mv "$tmp_file" "$ZABBIX_CONF"
+    echo "✅ Inserted at line $insert_at"
+else
+    echo "⚠️  '# UserParameter=' not found. Appending to end..."
+    echo -e "\n$GPU_PARAMS" >> "$ZABBIX_CONF"
+fi
+
+# === Step 4: Download GPU discovery script ===
+echo "📥 Installing GPU discovery script..."
+mkdir -p "$GPU_SCRIPT_DIR"
+curl -s -o "$GPU_SCRIPT_PATH" "$GPU_SCRIPT_URL"
+chmod +x "$GPU_SCRIPT_PATH"
+echo "✅ Script saved to: $GPU_SCRIPT_PATH"
+
+# === Step 5: Test discovery script ===
+echo "🧪 Running test: get_gpus_info.sh"
+if bash "$GPU_SCRIPT_PATH"; then
+    echo "✅ GPU discovery script ran successfully."
+else
+    echo "❌ Failed to run GPU discovery script."
+fi
+
+# === Step 6: Restart Zabbix Agent ===
+echo "🔄 Restarting zabbix-agent..."
+systemctl restart zabbix-agent && echo "✅ zabbix-agent restarted." || echo "❌ Restart failed."
+
+echo "🎉 All done."
