@@ -39,18 +39,19 @@ cp "$ZABBIX_CONF" "$BACKUP_CONF"
 # === Step 2: Convert CRLF to LF ===
 dos2unix "$ZABBIX_CONF" 2>/dev/null
 
-# === Step 3: Comment existing UserParameters ===
-echo "🔍 Commenting existing GPU UserParameters..."
+# === Step 3: Comment existing UserParameters by line number (SAFE method) ===
+echo "🔍 Commenting existing GPU UserParameters (safe via line number)..."
 while IFS= read -r line; do
     param_key=$(echo "$line" | cut -d= -f2 | cut -d, -f1)
-    escaped_key=$(echo "$param_key" | sed 's/\[/\\[/g; s/\]/\\]/g')
-    match_line=$(grep -E "^UserParameter=${escaped_key}," "$ZABBIX_CONF" || true)
+    grep_pattern="^UserParameter=${param_key},"
 
-    if [[ -n "$match_line" ]]; then
-        echo "➡️  Commenting: $param_key"
-        escaped_line=$(printf '%s\n' "$match_line" | sed 's/[]\/$*.^[]/\\&/g')
-        sed -i "s|^$escaped_line|# $match_line|" "$ZABBIX_CONF"
-    fi
+    # ค้นหา line numbers ของบรรทัดที่ตรงกับ pattern แบบ exact
+    mapfile -t matched_lines < <(grep -n "$grep_pattern" "$ZABBIX_CONF" | cut -d: -f1)
+
+    for lineno in "${matched_lines[@]}"; do
+        echo "➡️  Commenting line $lineno for key: $param_key"
+        sed -i "${lineno}s|^|# |" "$ZABBIX_CONF"
+    done
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
 # === Step 4: Insert new GPU UserParameters below "# UserParameter=" ===
