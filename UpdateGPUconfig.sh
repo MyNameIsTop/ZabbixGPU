@@ -33,16 +33,17 @@ cp "$ZABBIX_CONF" "$BACKUP_CONF"
 # === Step 2: Comment out existing GPU UserParameters ===
 echo "🔍 Checking for existing GPU UserParameters..."
 while IFS= read -r line; do
-    param_key=$(echo "$line" | grep -oP '^UserParameter=\K[^,]+')
-    escaped_key=$(printf '%s\n' "$param_key" | sed 's/\[/\\[/g; s/\]/\\]/g')
+    # ดึง key เช่น gpu.memtotal จาก UserParameter=...
+    param_key=$(echo "$line" | cut -d= -f2 | cut -d, -f1)
 
-    # ดึงค่าทั้งบรรทัดจาก config file ที่ match key แบบเป๊ะๆ (ไม่ใช้ regex fuzzy)
-    match_line=$(grep -E "^UserParameter=${escaped_key}," "$ZABBIX_CONF")
+    # หา line เต็มที่ match กับ key
+    match_line=$(grep -F "UserParameter=${param_key}," "$ZABBIX_CONF" || true)
 
     if [[ -n "$match_line" ]]; then
-        echo "➡️  Commenting existing line: $param_key"
-        # ใช้ sed แทนทั้งบรรทัดที่ match ด้วยข้อความเต็ม (ไม่ใช้ regex เดา)
-        sed -i "s|^${match_line}|# ${match_line}|" "$ZABBIX_CONF"
+        echo "➡️  Commenting: $param_key"
+        # Escape สำหรับ sed (literal string)
+        escaped_line=$(printf '%s\n' "$match_line" | sed 's/[^^]/[&]/g; s/\^/\\^/g')
+        sed -i "s|$match_line|# $match_line|" "$ZABBIX_CONF"
     fi
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
