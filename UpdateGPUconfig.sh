@@ -34,9 +34,14 @@ cp "$ZABBIX_CONF" "$BACKUP_CONF"
 echo "🔍 Checking for existing GPU UserParameters..."
 while IFS= read -r line; do
     param=$(echo "$line" | grep -oP '^UserParameter=\K[^,]+')
-    if grep -q "^UserParameter=${param}," "$ZABBIX_CONF"; then
+    # Escape characters for sed (e.g., [*])
+    escaped_param=$(echo "$param" | sed -e 's/\[/\\[/g' -e 's/\]/\\]/g')
+
+    # ตรวจสอบว่ามีอยู่จริงไหม (เผื่อมี space ข้างหน้า)
+    if grep -qE "^\s*UserParameter=${escaped_param}," "$ZABBIX_CONF"; then
         echo "➡️  Commenting existing: $param"
-        sed -i "s|^UserParameter=${param},|# UserParameter=${param},|" "$ZABBIX_CONF"
+        # คอมเมนต์โดยยังเก็บ space นำหน้าไว้
+        sed -i "s|^\(\s*\)UserParameter=${escaped_param},|# \1UserParameter=${escaped_param},|" "$ZABBIX_CONF"
     fi
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
