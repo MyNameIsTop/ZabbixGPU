@@ -33,15 +33,16 @@ cp "$ZABBIX_CONF" "$BACKUP_CONF"
 # === Step 2: Comment out existing GPU UserParameters ===
 echo "🔍 Checking for existing GPU UserParameters..."
 while IFS= read -r line; do
-    param=$(echo "$line" | grep -oP '^UserParameter=\K[^,]+')
-    # Escape characters for sed (e.g., [*])
-    escaped_param=$(echo "$param" | sed -e 's/\[/\\[/g' -e 's/\]/\\]/g')
+    param_key=$(echo "$line" | grep -oP '^UserParameter=\K[^,]+')
+    escaped_key=$(printf '%s\n' "$param_key" | sed 's/\[/\\[/g; s/\]/\\]/g')
 
-    # ตรวจสอบว่ามีอยู่จริงไหม (เผื่อมี space ข้างหน้า)
-    if grep -qE "^\s*UserParameter=${escaped_param}," "$ZABBIX_CONF"; then
-        echo "➡️  Commenting existing: $param"
-        # คอมเมนต์โดยยังเก็บ space นำหน้าไว้
-        sed -i "s|^\(\s*\)UserParameter=${escaped_param},|# \1UserParameter=${escaped_param},|" "$ZABBIX_CONF"
+    # ดึงค่าทั้งบรรทัดจาก config file ที่ match key แบบเป๊ะๆ (ไม่ใช้ regex fuzzy)
+    match_line=$(grep -E "^UserParameter=${escaped_key}," "$ZABBIX_CONF")
+
+    if [[ -n "$match_line" ]]; then
+        echo "➡️  Commenting existing line: $param_key"
+        # ใช้ sed แทนทั้งบรรทัดที่ match ด้วยข้อความเต็ม (ไม่ใช้ regex เดา)
+        sed -i "s|^${match_line}|# ${match_line}|" "$ZABBIX_CONF"
     fi
 done <<< "$(echo "$GPU_PARAMS" | grep ^UserParameter=)"
 
