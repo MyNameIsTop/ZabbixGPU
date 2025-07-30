@@ -68,6 +68,9 @@ else
 fi
 
 # === Step 6: Restart Zabbix Agent ===
+sudo chown zabbix:zabbix /etc/zabbix/zabbix_agentd.conf
+sudo chmod 644 /etc/zabbix/zabbix_agentd.conf
+
 echo "🔄 Restarting zabbix-agent..."
 systemctl restart zabbix-agent && echo "✅ zabbix-agent restarted." || echo "❌ Restart failed."
 
